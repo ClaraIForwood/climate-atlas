@@ -1,0 +1,27 @@
+{
+  "generated_at": "2026-07-04T12:14:11.184339+00:00",
+  "scenario": "ssp245",
+  "baseline_year": 1990,
+  "projection_years": [
+    2030,
+    2040,
+    2050,
+    2060,
+    2070,
+    2080
+  ],
+  "variables": {
+    "temp_anomaly": {
+      "description": "Projected temperature anomaly above 1990 baseline (\u00b0C), CMIP6 global grid",
+      "source": "CMIP6 ssp245"
+    },
+    "vulnerability": {
+      "description": "Country ND-GAIN vulnerability score (0\u20131, lower is less vulnerable)",
+      "source": "Notre Dame Global Adaptation Initiative (ND-GAIN)"
+    },
+    "readiness": {
+      "description": "Country ND-GAIN readiness score (0\u20131, higher is more ready)",
+      "source": "Notre Dame Global Adaptation Initiative (ND-GAIN)"
+    }
+  }
+}

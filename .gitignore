@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.npmrc
+
+# Large CMIP6 NetCDF/zip downloads — regenerate via pipeline/fetch_cmip6_fixed.py
+# (two of these exceed GitHub's 100MB file limit)
+pipeline/raw_data/*.nc
+pipeline/raw_data/*.zip
