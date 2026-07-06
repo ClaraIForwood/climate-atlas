@@ -1,0 +1,105 @@
+{
+  "cmip6_grid": {
+    "years": {
+      "2030": {
+        "n_features": 16946,
+        "min": -0.397,
+        "max": 3.498,
+        "clip_applied_count": 0
+      },
+      "2040": {
+        "n_features": 16946,
+        "min": -0.355,
+        "max": 4.752,
+        "clip_applied_count": 0
+      },
+      "2050": {
+        "n_features": 16946,
+        "min": -0.294,
+        "max": 7.645,
+        "clip_applied_count": 0
+      },
+      "2060": {
+        "n_features": 16946,
+        "min": -0.035,
+        "max": 9.181,
+        "clip_applied_count": 0
+      },
+      "2070": {
+        "n_features": 16946,
+        "min": -0.19,
+        "max": 8.377,
+        "clip_applied_count": 0
+      },
+      "2080": {
+        "n_features": 16946,
+        "min": 0.04,
+        "max": 7.727,
+        "clip_applied_count": 0
+      }
+    },
+    "oslo_anomaly_by_year": {
+      "2030": 0.942,
+      "2040": 1.397,
+      "2050": 1.526,
+      "2060": 1.644,
+      "2070": 0.814,
+      "2080": 1.221
+    },
+    "global_min": -0.397,
+    "global_max": 9.181
+  },
+  "precip_grid": {
+    "years": {
+      "2030": {
+        "n_features": 16946,
+        "min_pct": -53.0,
+        "max_pct": 63.9,
+        "raw_mm_day_max": 30.024965286254883,
+        "baseline_floor_applied_count": 4649,
+        "pct_clip_applied_count": 0
+      },
+      "2040": {
+        "n_features": 16946,
+        "min_pct": -54.5,
+        "max_pct": 45.6,
+        "raw_mm_day_max": 30.360525131225586,
+        "baseline_floor_applied_count": 4649,
+        "pct_clip_applied_count": 0
+      },
+      "2050": {
+        "n_features": 16946,
+        "min_pct": -52.3,
+        "max_pct": 60.8,
+        "raw_mm_day_max": 27.746854782104492,
+        "baseline_floor_applied_count": 4649,
+        "pct_clip_applied_count": 0
+      },
+      "2060": {
+        "n_features": 16946,
+        "min_pct": -49.5,
+        "max_pct": 76.0,
+        "raw_mm_day_max": 30.29696273803711,
+        "baseline_floor_applied_count": 4649,
+        "pct_clip_applied_count": 0
+      },
+      "2070": {
+        "n_features": 16946,
+        "min_pct": -59.8,
+        "max_pct": 69.6,
+        "raw_mm_day_max": 31.314435958862305,
+        "baseline_floor_applied_count": 4649,
+        "pct_clip_applied_count": 0
+      },
+      "2080": {
+        "n_features": 16946,
+        "min_pct": -49.8,
+        "max_pct": 77.7,
+        "raw_mm_day_max": 29.747438430786133,
+        "baseline_floor_applied_count": 4649,
+        "pct_clip_applied_count": 0
+      }
+    },
+    "raw_negative_mm_day_count": 0
+  }
+}
