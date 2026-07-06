@@ -63,17 +63,27 @@ function getInitialView() {
   }
 }
 
-// CMIP6 grid fill colour ramp
+// CMIP6 temperature grid fill colour ramp (ColorBrewer "RdYlBu"/"RdBu" diverging family).
+// Extends to [-1.0, 10.0] to match TEMP_ANOMALY_CLIP_MIN/MAX in sources.py — the -1.0 stop
+// (#313695) represents real single-run cooling relative to the 1990 baseline, and the 10.0
+// stop (#67001f) extends the hot end so cells above the old 5°C ceiling remain distinguishable
+// rather than bucketing into identical dark red. The 6.5/8.5 stops are linear RGB blends
+// between #a50026 and #67001f (not arbitrary picks) so the 5-10°C band gets banding as fine
+// as the 0-5°C band instead of only 2 points spanning 5 degrees.
 const CMIP6_COLOR_EXPR = [
   'interpolate', ['linear'], ['get', 'temp_anomaly'],
-  0.0, '#4575b4',
-  1.0, '#74add1',
-  1.5, '#abd9e9',
-  2.0, '#fee090',
-  2.5, '#fdae61',
-  3.0, '#f46d43',
-  4.0, '#d73027',
-  5.0, '#a50026',
+  -1.0, '#313695',
+   0.0, '#4575b4',
+   1.0, '#74add1',
+   1.5, '#abd9e9',
+   2.0, '#fee090',
+   2.5, '#fdae61',
+   3.0, '#f46d43',
+   4.0, '#d73027',
+   5.0, '#a50026',
+   6.5, '#920024',
+   8.5, '#7a0021',
+  10.0, '#67001f',
 ]
 
 export default function MapCanvas() {

@@ -26,6 +26,8 @@ from sources import (
     RAW_HIST_NC,
     RAW_SSP_NC,
     OUT_CMIP6_GRID,
+    TEMP_ANOMALY_CLIP_MIN,
+    TEMP_ANOMALY_CLIP_MAX,
     OUT_COUNTRIES,
     OUT_META,
     OUTPUT_DIR,
@@ -173,21 +175,58 @@ def write_meta() -> None:
 GRID_HALF_DEG = 0.5625  # half of 1.125° grid spacing
 
 
-def export_cmip6_grid_geojson(countries_gdf: gpd.GeoDataFrame) -> None:
+def _build_land_mask(countries_gdf: gpd.GeoDataFrame, lats: np.ndarray, lons: np.ndarray):
+    """
+    Spatial-join grid-cell centres against country polygons -> land cell set.
+
+    Factored out so future grid exporters (e.g. other CMIP6 variables) can
+    reuse identical land coverage rather than risk it drifting between them.
+
+    Returns (land_set: set[(lat_i, lon_i)], lons_180: np.ndarray).
+    """
+    from shapely.geometry import Point
+
+    n_lat, n_lon = len(lats), len(lons)
+    lons_180 = np.where(lons > 180, lons - 360, lons)
+    lat_grid, lon_grid = np.meshgrid(lats, lons_180, indexing="ij")
+    flat_lat_idx = np.repeat(np.arange(n_lat), n_lon)
+    flat_lon_idx = np.tile(np.arange(n_lon), n_lat)
+    points_gdf = gpd.GeoDataFrame(
+        {"lat_i": flat_lat_idx, "lon_i": flat_lon_idx},
+        geometry=[Point(lo, la) for la, lo in zip(lat_grid.ravel(), lon_grid.ravel())],
+        crs="EPSG:4326",
+    )
+    land_gdf = countries_gdf[["geometry"]].copy().to_crs("EPSG:4326")
+    joined = gpd.sjoin(points_gdf, land_gdf, how="inner", predicate="within")
+    land_set = set(zip(joined["lat_i"].values, joined["lon_i"].values))
+    print(f"  Land cells: {len(land_set):,} of {n_lat * n_lon:,}")
+    return land_set, lons_180
+
+
+def export_cmip6_grid_geojson(countries_gdf: gpd.GeoDataFrame) -> dict:
     """
     Export the CMIP6 temperature anomaly field as per-decade GeoJSON polygon files.
     Land cells only (ocean cells skipped). One file per year in YEARS.
     Anomaly = 5-year symmetric window mean (SSP2-4.5) minus 1990-2014 baseline mean.
+
+    Values are clipped to [TEMP_ANOMALY_CLIP_MIN, TEMP_ANOMALY_CLIP_MAX] as a sanity
+    guard, but — unlike the old version of this function — negative (cooling)
+    values are preserved rather than floored to 0.0; single CMIP6 runs can show
+    real, if noisy, cooling relative to baseline in specific cells/decades due to
+    internal variability, and silently flattening that to "no change" misrepresents
+    the projection. See sources.py for the empirical grounding of the clip range.
+
+    Returns a stats dict for check.py to validate (no printed pass/fail here —
+    validation responsibility now lives in check.py, reading the written files).
     """
     import xarray as xr
-    from shapely.geometry import Point
 
     print("\n[3/3] Exporting CMIP6 global grid GeoJSON...")
 
     for nc_path in (RAW_HIST_NC, RAW_SSP_NC):
         if not os.path.exists(nc_path):
             print(f"  WARNING: {nc_path} not found — skipping grid export")
-            return
+            return {}
 
     # ── Load NetCDF files into numpy ───────────────────────────────────────
     print("  Loading historical NetCDF...")
@@ -203,33 +242,12 @@ def export_cmip6_grid_geojson(countries_gdf: gpd.GeoDataFrame) -> None:
     ssp_years = pd.DatetimeIndex(ds_ssp["time"].values).year.values  # (1032,)
     ds_ssp.close()
 
-    n_lat, n_lon = len(lats), len(lons)
-
     # ── Baseline: 1990-2014 mean ───────────────────────────────────────────
     baseline_2d = hist_tas.mean(axis=0)      # (160, 320) Kelvin
 
     # ── Land mask via spatial join ─────────────────────────────────────────
     print("  Building land mask via spatial join...")
-    # Convert all grid cell centres to -180/180 lon convention
-    lons_180 = np.where(lons > 180, lons - 360, lons)
-
-    # Build GeoDataFrame of all cell centres
-    lat_grid, lon_grid = np.meshgrid(lats, lons_180, indexing="ij")  # (160, 320)
-    flat_lats = lat_grid.ravel()
-    flat_lons_180 = lon_grid.ravel()
-    flat_lat_idx = np.repeat(np.arange(n_lat), n_lon)
-    flat_lon_idx = np.tile(np.arange(n_lon), n_lat)
-
-    points_gdf = gpd.GeoDataFrame(
-        {"lat_i": flat_lat_idx, "lon_i": flat_lon_idx},
-        geometry=[Point(lo, la) for la, lo in zip(flat_lats, flat_lons_180)],
-        crs="EPSG:4326",
-    )
-
-    land_gdf = countries_gdf[["geometry"]].copy().to_crs("EPSG:4326")
-    joined = gpd.sjoin(points_gdf, land_gdf, how="inner", predicate="within")
-    land_set = set(zip(joined["lat_i"].values, joined["lon_i"].values))
-    print(f"  Land cells: {len(land_set):,} of {n_lat * n_lon:,}")
+    land_set, lons_180 = _build_land_mask(countries_gdf, lats, lons)
 
     # ── Per-decade precompute year masks ───────────────────────────────────
     year_masks = {
@@ -237,13 +255,12 @@ def export_cmip6_grid_geojson(countries_gdf: gpd.GeoDataFrame) -> None:
         for yr in YEARS
     }
 
-    # ── Validation accumulators ────────────────────────────────────────────
     oslo_lat_i = int(np.argmin(np.abs(lats - 59.91)))
     oslo_lon_i = int(np.argmin(np.abs(lons - 10.75)))
 
+    years_stats: dict[int, dict] = {}
     oslo_anomalies: dict[int, float] = {}
-    summary_rows: list[tuple] = []
-    all_ok = True
+    global_min, global_max = float("inf"), float("-inf")
 
     for yr in YEARS:
         mask = year_masks[yr]
@@ -251,6 +268,7 @@ def export_cmip6_grid_geojson(countries_gdf: gpd.GeoDataFrame) -> None:
         anomaly_2d = proj_2d - baseline_2d             # °C (K difference)
 
         features: list[dict] = []
+        clip_applied_count = 0
 
         for lat_i, lon_i in land_set:
             lon_c = float(lons_180[lon_i])
@@ -266,8 +284,10 @@ def export_cmip6_grid_geojson(countries_gdf: gpd.GeoDataFrame) -> None:
             s = lat_c - GRID_HALF_DEG
             n = lat_c + GRID_HALF_DEG
 
-            val = float(anomaly_2d[lat_i, lon_i])
-            val = max(0.0, min(8.0, val))  # clip negative and cap at 8°C
+            raw_val = float(anomaly_2d[lat_i, lon_i])
+            val = max(TEMP_ANOMALY_CLIP_MIN, min(TEMP_ANOMALY_CLIP_MAX, raw_val))
+            if val != raw_val:
+                clip_applied_count += 1
 
             features.append({
                 "type": "Feature",
@@ -295,34 +315,33 @@ def export_cmip6_grid_geojson(countries_gdf: gpd.GeoDataFrame) -> None:
 
         size_mb = os.path.getsize(out_path) / (1024 * 1024)
         n_feat = len(features)
-        print(f"  cmip6_grid_{yr}.geojson — {n_feat:,} features, {size_mb:.1f} MB")
-
-        # Collect validation data
         all_vals = [feat["properties"]["temp_anomaly"] for feat in features]
-        summary_rows.append((yr, min(all_vals), max(all_vals), n_feat, size_mb))
+        lo, hi = min(all_vals), max(all_vals)
+        global_min, global_max = min(global_min, lo), max(global_max, hi)
+
+        print(f"  cmip6_grid_{yr}.geojson — {n_feat:,} features, {size_mb:.1f} MB, "
+              f"range [{lo:.3f}, {hi:.3f}], clipped {clip_applied_count}")
 
         oslo_anomalies[yr] = round(float(anomaly_2d[oslo_lat_i, oslo_lon_i]), 3)
+        years_stats[yr] = {
+            "n_features": n_feat,
+            "min": lo,
+            "max": hi,
+            "clip_applied_count": clip_applied_count,
+        }
 
-        if not (10_000 <= n_feat <= 25_000):
-            print(f"  WARNING: feature count {n_feat} outside expected 10k–25k range")
-            all_ok = False
+    print("\n  CMIP6 grid summary:")
+    print(f"  {'Year':>6}  {'Min°C':>7}  {'Max°C':>7}  {'Features':>9}  {'Clipped':>7}")
+    for yr, s in years_stats.items():
+        print(f"  {yr:>6}  {s['min']:>7.3f}  {s['max']:>7.3f}  {s['n_features']:>9,}  {s['clip_applied_count']:>7,}")
+    print("  Run `python check.py` to validate against expected ranges.")
 
-    # ── Validation checks ─────────────────────────────────────────────────
-    print("\n  CMIP6 grid validation:")
-    print(f"  {'Year':>6}  {'Min°C':>7}  {'Max°C':>7}  {'Features':>9}  {'MB':>5}")
-    for yr, lo, hi, n, mb in summary_rows:
-        print(f"  {yr:>6}  {lo:>7.3f}  {hi:>7.3f}  {n:>9,}  {mb:>5.1f}")
-
-    global_max = max(r[2] for r in summary_rows)
-    if global_max > 8.0:
-        print(f"  WARNING: max anomaly {global_max:.2f}°C exceeds 8°C sanity cap")
-        all_ok = False
-
-    if oslo_anomalies.get(2080, 0) <= oslo_anomalies.get(2030, 0):
-        print(f"  WARNING: Oslo anomaly not monotonically rising (2030={oslo_anomalies.get(2030)}, 2080={oslo_anomalies.get(2080)})")
-        all_ok = False
-
-    print(f"  Grid export {'OK' if all_ok else 'WARNINGS — review above'}.")
+    return {
+        "years": years_stats,
+        "oslo_anomaly_by_year": oslo_anomalies,
+        "global_min": global_min,
+        "global_max": global_max,
+    }
 
 
 # ---------------------------------------------------------------------------

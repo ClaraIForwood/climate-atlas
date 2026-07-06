@@ -24,3 +24,17 @@ OUT_META = os.path.join(OUTPUT_DIR, "meta.json")
 RAW_HIST_NC    = os.path.join(RAW_DIR, "cmip6_tas_historical.nc")
 RAW_SSP_NC     = os.path.join(RAW_DIR, "cmip6_tas_ssp245.nc")
 OUT_CMIP6_GRID = os.path.join(OUTPUT_DIR, "cmip6_grid_{year}.geojson")
+
+# --- TEMPERATURE ANOMALY CLIP RANGE ---
+# Replaces the old hardcoded max(0.0, min(8.0, val)). Empirically grounded: land-only raw
+# range across all 6 decades is [-0.397, 9.181]°C (verified directly against the NetCDF).
+# The old range silently floored negative (cooling) signal to 0.0 and already clipped
+# 2060/2070 at the old 8.0 cap.
+TEMP_ANOMALY_CLIP_MIN = -1.0   # was 0.0 — now preserves real single-run cooling signal
+TEMP_ANOMALY_CLIP_MAX = 10.0   # was 8.0 — now covers the observed 9.18°C 2060 land max
+
+# Soft/"typical" band for check.py's near-boundary INFO diagnostic.
+# NOT a pass/fail bound (that would be tautological against a value already clamped to it);
+# only flags cells sitting close enough to the hard clip that truncation may be occurring.
+TEMP_ANOMALY_SOFT_MIN = -0.5
+TEMP_ANOMALY_SOFT_MAX = 9.0
