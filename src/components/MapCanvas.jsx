@@ -251,7 +251,7 @@ export default function MapCanvas() {
     map.setLayoutProperty('cmip6-grid-fill', 'visibility', vis)
     if (activeLayers.cmip6Grid) {
       const gridYear = snapToGridYear(activeYear)
-      map.getSource('cmip6-grid')?.setData(`/data/cmip6_grid_${gridYear}.geojson`)
+      map.getSource('cmip6-grid')?.setData(`${import.meta.env.BASE_URL}data/cmip6_grid_${gridYear}.geojson`)
     }
   }, [activeLayers.cmip6Grid]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -262,7 +262,7 @@ export default function MapCanvas() {
     clearTimeout(cmip6DebounceRef.current)
     cmip6DebounceRef.current = setTimeout(() => {
       const gridYear = snapToGridYear(activeYear)
-      map.getSource('cmip6-grid')?.setData(`/data/cmip6_grid_${gridYear}.geojson`)
+      map.getSource('cmip6-grid')?.setData(`${import.meta.env.BASE_URL}data/cmip6_grid_${gridYear}.geojson`)
     }, 50)
   }, [activeYear, activeLayers.cmip6Grid])
 
