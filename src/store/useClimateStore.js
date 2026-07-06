@@ -6,7 +6,9 @@ const useClimateStore = create((set) => ({
     readiness: false,
     vulnerability: false,
     cmip6Grid: false,
+    precipGrid: false,
   },
+  infoPanelOpen: false,
 
   setActiveYear: (year) => set({ activeYear: year }),
 
@@ -14,6 +16,9 @@ const useClimateStore = create((set) => ({
     set((state) => ({
       activeLayers: { ...state.activeLayers, [layer]: !state.activeLayers[layer] },
     })),
+
+  toggleInfoPanel: () => set((state) => ({ infoPanelOpen: !state.infoPanelOpen })),
+  closeInfoPanel: () => set({ infoPanelOpen: false }),
 }))
 
 export default useClimateStore

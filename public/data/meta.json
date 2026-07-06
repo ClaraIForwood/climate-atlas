@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-04T12:14:11.184339+00:00",
+  "generated_at": "2026-07-06T21:37:08.673558+00:00",
   "scenario": "ssp245",
   "baseline_year": 1990,
   "projection_years": [
@@ -13,6 +13,10 @@
   "variables": {
     "temp_anomaly": {
       "description": "Projected temperature anomaly above 1990 baseline (\u00b0C), CMIP6 global grid",
+      "source": "CMIP6 ssp245"
+    },
+    "precip_change_pct": {
+      "description": "Projected precipitation change vs 1990 baseline (% of baseline daily mean), CMIP6 global grid",
       "source": "CMIP6 ssp245"
     },
     "vulnerability": {

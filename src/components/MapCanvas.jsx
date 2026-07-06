@@ -3,7 +3,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import useClimateStore from '../store/useClimateStore'
 import { useMapData } from '../hooks/useMapData'
-import { formatTemp } from '../utils/formatters'
+import { formatTemp, formatPrecipPct } from '../utils/formatters'
 
 const MAP_STYLE = 'https://tiles.openfreemap.org/styles/dark'
 const FALLBACK_STYLE = 'https://tiles.openfreemap.org/styles/liberty'
@@ -86,12 +86,65 @@ const CMIP6_COLOR_EXPR = [
   10.0, '#67001f',
 ]
 
+// Precipitation grid fill colour ramp — ColorBrewer "BrBG" diverging (brown=drier,
+// green=wetter), deliberately distinct from the temperature ramp above.
+const PRECIP_COLOR_EXPR = [
+  'interpolate', ['linear'], ['get', 'precip_change_pct'],
+  -50, '#8c510a',
+  -25, '#bf812d',
+  -10, '#dfc27d',
+    0, '#f5f5f5',
+   10, '#c7eae5',
+   25, '#80cdc1',
+   50, '#35978f',
+  100, '#01665e',
+]
+
+function gridUrl(name, gridYear) {
+  return `${import.meta.env.BASE_URL}data/${name}_grid_${gridYear}.geojson`
+}
+
+function buildGridPopupHTML(lat, lon, valueLabel, valueColor, captionText) {
+  return (
+    `<div style="background:rgba(10,10,20,0.88);border:1px solid rgba(255,255,255,0.1);` +
+    `border-radius:8px;padding:8px 10px;color:#fff;font-family:system-ui,sans-serif">` +
+    `<div style="font-size:11px;font-weight:700;margin-bottom:4px">${lat.toFixed(2)}°, ${lon.toFixed(2)}°</div>` +
+    `<div style="font-size:14px;font-weight:700;color:${valueColor}">${valueLabel}</div>` +
+    `<div style="font-size:8px;color:rgba(255,255,255,0.35);margin-top:3px">${captionText}</div>` +
+    `</div>`
+  )
+}
+
+// Shared visibility/data-load + debounced year-change wiring for a raw grid layer.
+// Pure parameterization of the two effect-pairs that used to exist only for the
+// temperature grid — no behavioural differences between the temp/precip call sites.
+function useGridLayerSync(mapRef, mapLoadedRef, { sourceId, layerId, enabled, activeYear, urlFor, debounceRef }) {
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoadedRef.current) return
+    map.setLayoutProperty(layerId, 'visibility', enabled ? 'visible' : 'none')
+    if (enabled) {
+      map.getSource(sourceId)?.setData(urlFor(snapToGridYear(activeYear)))
+    }
+  }, [enabled]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoadedRef.current || !enabled) return
+    clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      map.getSource(sourceId)?.setData(urlFor(snapToGridYear(activeYear)))
+    }, 50)
+  }, [activeYear, enabled])
+}
+
 export default function MapCanvas() {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const mapLoadedRef = useRef(false)
   const countriesRef = useRef(null)
   const cmip6DebounceRef = useRef(null)
+  const precipDebounceRef = useRef(null)
 
   const activeYear   = useClimateStore((s) => s.activeYear)
   const activeLayers = useClimateStore((s) => s.activeLayers)
@@ -131,7 +184,7 @@ export default function MapCanvas() {
     map.on('load', () => {
       mapLoadedRef.current = true
 
-      // ── CMIP6 grid fill ────────────────────────────────────────────────────
+      // ── CMIP6 temperature grid fill ────────────────────────────────────────
       map.addSource('cmip6-grid', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
@@ -143,6 +196,23 @@ export default function MapCanvas() {
         layout: { visibility: 'none' },
         paint: {
           'fill-color': CMIP6_COLOR_EXPR,
+          'fill-opacity': 0.65,
+          'fill-outline-color': 'transparent',
+        },
+      })
+
+      // ── Precipitation grid fill ─────────────────────────────────────────────
+      map.addSource('precip-grid', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+      map.addLayer({
+        id: 'precip-grid-fill',
+        type: 'fill',
+        source: 'precip-grid',
+        layout: { visibility: 'none' },
+        paint: {
+          'fill-color': PRECIP_COLOR_EXPR,
           'fill-opacity': 0.65,
           'fill-outline-color': 'transparent',
         },
@@ -174,7 +244,7 @@ export default function MapCanvas() {
         },
       })
 
-      // Hover cursor + click popup on the CMIP6 grid
+      // Hover cursor + click popup on the CMIP6 temperature grid
       map.on('mouseenter', 'cmip6-grid-fill', () => {
         map.getCanvas().style.cursor = 'pointer'
       })
@@ -186,16 +256,42 @@ export default function MapCanvas() {
       map.on('click', 'cmip6-grid-fill', (e) => {
         const props = e.features?.[0]?.properties
         if (!props) return
-        const html =
-          `<div style="background:rgba(10,10,20,0.88);border:1px solid rgba(255,255,255,0.1);` +
-          `border-radius:8px;padding:8px 10px;color:#fff;font-family:system-ui,sans-serif">` +
-          `<div style="font-size:11px;font-weight:700;margin-bottom:4px">${props.lat.toFixed(2)}°, ${props.lon.toFixed(2)}°</div>` +
-          `<div style="font-size:14px;font-weight:700;color:#F0C040">${formatTemp(props.temp_anomaly)}</div>` +
-          `<div style="font-size:8px;color:rgba(255,255,255,0.35);margin-top:3px">Temp anomaly vs 1990 baseline</div>` +
-          `</div>`
-
+        const html = buildGridPopupHTML(
+          props.lat, props.lon,
+          formatTemp(props.temp_anomaly), '#F0C040',
+          'Temp anomaly vs 1990 baseline',
+        )
         if (gridPopup) gridPopup.remove()
         gridPopup = new maplibregl.Popup({
+          closeButton: true,
+          closeOnClick: true,
+          offset: 8,
+          className: 'city-hover-popup',
+        })
+          .setLngLat(e.lngLat)
+          .setHTML(html)
+          .addTo(map)
+      })
+
+      // Hover cursor + click popup on the precipitation grid
+      map.on('mouseenter', 'precip-grid-fill', () => {
+        map.getCanvas().style.cursor = 'pointer'
+      })
+      map.on('mouseleave', 'precip-grid-fill', () => {
+        map.getCanvas().style.cursor = ''
+      })
+
+      let precipPopup = null
+      map.on('click', 'precip-grid-fill', (e) => {
+        const props = e.features?.[0]?.properties
+        if (!props) return
+        const html = buildGridPopupHTML(
+          props.lat, props.lon,
+          formatPrecipPct(props.precip_change_pct), '#80cdc1',
+          'Precip change vs 1990 baseline',
+        )
+        if (precipPopup) precipPopup.remove()
+        precipPopup = new maplibregl.Popup({
           closeButton: true,
           closeOnClick: true,
           offset: 8,
@@ -253,28 +349,24 @@ export default function MapCanvas() {
     }
   }, [activeLayers.readiness, activeLayers.vulnerability])
 
-  // ── CMIP6 grid visibility + initial data load ──────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !mapLoadedRef.current) return
-    const vis = activeLayers.cmip6Grid ? 'visible' : 'none'
-    map.setLayoutProperty('cmip6-grid-fill', 'visibility', vis)
-    if (activeLayers.cmip6Grid) {
-      const gridYear = snapToGridYear(activeYear)
-      map.getSource('cmip6-grid')?.setData(`${import.meta.env.BASE_URL}data/cmip6_grid_${gridYear}.geojson`)
-    }
-  }, [activeLayers.cmip6Grid]) // eslint-disable-line react-hooks/exhaustive-deps
+  // ── Raw grid layers: visibility + initial load + debounced year-change ─────
+  useGridLayerSync(mapRef, mapLoadedRef, {
+    sourceId: 'cmip6-grid',
+    layerId: 'cmip6-grid-fill',
+    enabled: activeLayers.cmip6Grid,
+    activeYear,
+    urlFor: (yr) => gridUrl('cmip6', yr),
+    debounceRef: cmip6DebounceRef,
+  })
 
-  // ── CMIP6 grid year change (debounced 50 ms) ───────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !mapLoadedRef.current || !activeLayers.cmip6Grid) return
-    clearTimeout(cmip6DebounceRef.current)
-    cmip6DebounceRef.current = setTimeout(() => {
-      const gridYear = snapToGridYear(activeYear)
-      map.getSource('cmip6-grid')?.setData(`${import.meta.env.BASE_URL}data/cmip6_grid_${gridYear}.geojson`)
-    }, 50)
-  }, [activeYear, activeLayers.cmip6Grid])
+  useGridLayerSync(mapRef, mapLoadedRef, {
+    sourceId: 'precip-grid',
+    layerId: 'precip-grid-fill',
+    enabled: activeLayers.precipGrid,
+    activeYear,
+    urlFor: (yr) => gridUrl('precip', yr),
+    debounceRef: precipDebounceRef,
+  })
 
   return <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
 }

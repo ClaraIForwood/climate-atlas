@@ -22,7 +22,7 @@ export function useUrlState() {
     }
 
     const layers = (p.get('layers') ?? '').split(',').filter(Boolean)
-    const validKeys = ['readiness', 'vulnerability', 'cmip6Grid']
+    const validKeys = ['readiness', 'vulnerability', 'cmip6Grid', 'precipGrid']
     layers.forEach((key) => {
       if (validKeys.includes(key) && !useClimateStore.getState().activeLayers[key]) {
         toggleLayer(key)
