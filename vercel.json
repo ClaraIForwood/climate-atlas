@@ -3,6 +3,7 @@
     { "source": "/climate-atlas/assets/:path*", "destination": "/assets/:path*" },
     { "source": "/climate-atlas/data/:path*", "destination": "/data/:path*" },
     { "source": "/climate-atlas", "destination": "/index.html" },
+    { "source": "/climate-atlas/", "destination": "/index.html" },
     { "source": "/climate-atlas/:path*", "destination": "/index.html" }
   ]
 }
