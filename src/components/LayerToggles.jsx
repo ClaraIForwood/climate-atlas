@@ -1,4 +1,53 @@
+import { useState } from 'react'
 import useClimateStore from '../store/useClimateStore'
+
+// The "?" icon used to rely solely on the native `title` attribute for its
+// tooltip — a browser-hover-only mechanism with no touch/tap equivalent, so
+// it never worked on mobile/tablet. Click/tap-to-toggle works everywhere.
+function HelpIcon({ text, open, onToggle }) {
+  return (
+    <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+      <span
+        onClick={onToggle}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        aria-label="More info"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onToggle()
+          }
+        }}
+        style={{
+          fontSize: 11,
+          color: open ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.35)',
+          cursor: 'pointer',
+          lineHeight: 1,
+        }}
+      >?</span>
+      {open && (
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          right: 0,
+          marginTop: 6,
+          width: 200,
+          padding: '8px 10px',
+          borderRadius: 6,
+          background: 'rgba(10,10,20,0.92)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          fontSize: 10,
+          color: 'rgba(255,255,255,0.7)',
+          lineHeight: 1.4,
+          zIndex: 10,
+        }}>
+          {text}
+        </div>
+      )}
+    </span>
+  )
+}
 
 function PillToggle({ checked, indeterminate, onChange, label, description, indent }) {
   return (
@@ -65,6 +114,7 @@ function PillToggle({ checked, indeterminate, onChange, label, description, inde
 export default function LayerToggles() {
   const activeLayers     = useClimateStore((s) => s.activeLayers)
   const toggleLayer      = useClimateStore((s) => s.toggleLayer)
+  const [openHelp, setOpenHelp] = useState(null) // 'cmip6Grid' | 'precipGrid' | null
 
   const bothNdGain     = activeLayers.readiness && activeLayers.vulnerability
   const partialNdGain  = activeLayers.readiness !== activeLayers.vulnerability
@@ -105,12 +155,13 @@ export default function LayerToggles() {
           <PillToggle
             checked={activeLayers.cmip6Grid}
             onChange={() => handleGridToggle('cmip6Grid')}
-            label="Raw CMIP6 grid"
+            label="Projected Temperature Change"
           />
-          <span
-            style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', cursor: 'help', lineHeight: 1 }}
-            title="Shows the raw CMIP6 model output — the actual grid cells that city values are extracted from. Each cell is ~125 km × 125 km."
-          >?</span>
+          <HelpIcon
+            open={openHelp === 'cmip6Grid'}
+            onToggle={() => setOpenHelp(openHelp === 'cmip6Grid' ? null : 'cmip6Grid')}
+            text="Shows the raw CMIP6 model output — the actual grid cells that city values are extracted from. Each cell is ~125 km × 125 km."
+          />
         </div>
         <div style={{ paddingLeft: 42, marginTop: 2 }}>
           <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>
@@ -128,12 +179,13 @@ export default function LayerToggles() {
           <PillToggle
             checked={activeLayers.precipGrid}
             onChange={() => handleGridToggle('precipGrid')}
-            label="Precipitation"
+            label="Projected Precipitation Change"
           />
-          <span
-            style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', cursor: 'help', lineHeight: 1 }}
-            title="Shows projected precipitation change vs the 1990 baseline, from the same CMIP6 model as the temperature grid. Precipitation has wider inter-model disagreement than temperature in CMIP6 generally."
-          >?</span>
+          <HelpIcon
+            open={openHelp === 'precipGrid'}
+            onToggle={() => setOpenHelp(openHelp === 'precipGrid' ? null : 'precipGrid')}
+            text="Shows projected precipitation change vs the 1990 baseline, from the same CMIP6 model as the temperature grid. Precipitation has wider inter-model disagreement than temperature in CMIP6 generally."
+          />
         </div>
         <div style={{ paddingLeft: 42, marginTop: 2 }}>
           <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>
