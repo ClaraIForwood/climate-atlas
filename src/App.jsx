@@ -1,6 +1,7 @@
 import MapCanvas from './components/MapCanvas'
 import ControlPanel from './components/ControlPanel'
 import Legend from './components/Legend'
+import InfoPanel from './components/InfoPanel'
 import { useUrlState } from './hooks/useUrlState'
 
 export default function App() {
@@ -11,6 +12,7 @@ export default function App() {
       <MapCanvas />
       <ControlPanel />
       <Legend />
+      <InfoPanel />
     </div>
   )
 }

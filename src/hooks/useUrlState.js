@@ -22,9 +22,19 @@ export function useUrlState() {
     }
 
     const layers = (p.get('layers') ?? '').split(',').filter(Boolean)
-    const validKeys = ['readiness', 'vulnerability', 'cmip6Grid']
+    const validKeys = ['readiness', 'vulnerability', 'cmip6Grid', 'precipGrid']
+    const GRID_KEYS = ['cmip6Grid', 'precipGrid']
+    let gridKeyEnabled = null
     layers.forEach((key) => {
-      if (validKeys.includes(key) && !useClimateStore.getState().activeLayers[key]) {
+      if (!validKeys.includes(key)) return
+      if (GRID_KEYS.includes(key)) {
+        // Mutual exclusivity: LayerToggles.jsx's handleGridToggle never lets both
+        // grid layers be active via the UI — a hand-crafted URL shouldn't be able
+        // to either. Whichever grid key appears first in the URL string wins.
+        if (gridKeyEnabled) return
+        gridKeyEnabled = key
+      }
+      if (!useClimateStore.getState().activeLayers[key]) {
         toggleLayer(key)
       }
     })

@@ -79,6 +79,14 @@ export default function LayerToggles() {
     }
   }
 
+  // The two raw grid layers are both global-coverage fills that would visually
+  // conflict if stacked — enforce mutual exclusivity at the UI level.
+  function handleGridToggle(key) {
+    const other = key === 'cmip6Grid' ? 'precipGrid' : 'cmip6Grid'
+    if (!activeLayers[key] && activeLayers[other]) toggleLayer(other)
+    toggleLayer(key)
+  }
+
   return (
     <div>
       <div style={{
@@ -96,7 +104,7 @@ export default function LayerToggles() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <PillToggle
             checked={activeLayers.cmip6Grid}
-            onChange={() => toggleLayer('cmip6Grid')}
+            onChange={() => handleGridToggle('cmip6Grid')}
             label="Raw CMIP6 grid"
           />
           <span
@@ -107,6 +115,29 @@ export default function LayerToggles() {
         <div style={{ paddingLeft: 42, marginTop: 2 }}>
           <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>
             Temperature anomaly vs 1990 baseline
+          </div>
+          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', marginTop: 1 }}>
+            MRI-ESM2-0 · SSP2-4.5 · 1.125° grid
+          </div>
+        </div>
+      </div>
+
+      {/* CMIP6 raw precipitation grid */}
+      <div style={{ marginBottom: 8, marginTop: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <PillToggle
+            checked={activeLayers.precipGrid}
+            onChange={() => handleGridToggle('precipGrid')}
+            label="Precipitation"
+          />
+          <span
+            style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', cursor: 'help', lineHeight: 1 }}
+            title="Shows projected precipitation change vs the 1990 baseline, from the same CMIP6 model as the temperature grid. Precipitation has wider inter-model disagreement than temperature in CMIP6 generally."
+          >?</span>
+        </div>
+        <div style={{ paddingLeft: 42, marginTop: 2 }}>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>
+            Precipitation change vs 1990 baseline (%)
           </div>
           <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', marginTop: 1 }}>
             MRI-ESM2-0 · SSP2-4.5 · 1.125° grid

@@ -10,8 +10,12 @@ const GLASS = {
 
 const GRADIENT = 'linear-gradient(to bottom, #4EB3D3 0%, #A8D96B 25%, #F0C040 50%, #E07020 75%, #B01020 100%)'
 
-// Matches the MapLibre CMIP6_COLOR_EXPR stops (hot at top, cold at bottom)
-const CMIP6_GRADIENT = 'linear-gradient(to bottom, #a50026 0%, #d73027 15%, #f46d43 30%, #fdae61 45%, #fee090 60%, #abd9e9 75%, #74add1 88%, #4575b4 100%)'
+// Matches MapCanvas's CMIP6_COLOR_EXPR stops exactly (hot at top, cold at bottom),
+// proportionally positioned across the [-1.0, 10.0] range.
+const CMIP6_GRADIENT = 'linear-gradient(to bottom, #67001f 0%, #7a0021 14%, #920024 32%, #a50026 45%, #d73027 55%, #f46d43 64%, #fdae61 68%, #fee090 73%, #abd9e9 77%, #74add1 82%, #4575b4 91%, #313695 100%)'
+
+// Matches MapCanvas's PRECIP_COLOR_EXPR stops (wetter/green at top, drier/brown at bottom)
+const PRECIP_GRADIENT = 'linear-gradient(to bottom, #01665e 0%, #35978f 14%, #80cdc1 29%, #c7eae5 43%, #f5f5f5 57%, #dfc27d 71%, #bf812d 86%, #8c510a 100%)'
 
 const LAYER_META = {
   vulnerability: {
@@ -76,12 +80,59 @@ export default function Legend() {
           </div>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
-            <div style={{ width: 10, height: 90, borderRadius: 5, background: CMIP6_GRADIENT, flexShrink: 0 }} />
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: 90 }}>
-              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', whiteSpace: 'nowrap' }}>5°C+</span>
-              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap' }}>2.5°C</span>
-              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', whiteSpace: 'nowrap' }}>0°C</span>
+            <div style={{ position: 'relative', width: 10, height: 90, borderRadius: 5, background: CMIP6_GRADIENT, flexShrink: 0 }}>
+              <span style={{
+                position: 'absolute', right: '100%', marginRight: 4, top: '91%',
+                transform: 'translateY(-50%)', fontSize: 8, color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap',
+              }}>0°C</span>
             </div>
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: 90 }}>
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', whiteSpace: 'nowrap' }}>10°C+</span>
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', whiteSpace: 'nowrap' }}>-1°C</span>
+            </div>
+          </div>
+
+          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', textAlign: 'center', lineHeight: 1.4, maxWidth: 150, marginTop: 2 }}>
+            Negative = single-run cooling vs 1990 baseline, not measurement error.
+          </div>
+        </div>
+      )}
+
+      {/* Precipitation change legend — shown when precip grid layer is on */}
+      {activeLayers.precipGrid && (
+        <div style={{
+          ...GLASS,
+          padding: '12px 14px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 6,
+        }}>
+          <div style={{
+            fontSize: 10,
+            color: 'rgba(255,255,255,0.4)',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            marginBottom: 2,
+          }}>
+            Precip change (vs 1990)
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+            <div style={{ position: 'relative', width: 10, height: 90, borderRadius: 5, background: PRECIP_GRADIENT, flexShrink: 0 }}>
+              <span style={{
+                position: 'absolute', right: '100%', marginRight: 4, top: '66.7%',
+                transform: 'translateY(-50%)', fontSize: 8, color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap',
+              }}>0%</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: 90 }}>
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', whiteSpace: 'nowrap' }}>+100%+</span>
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', whiteSpace: 'nowrap' }}>-50%</span>
+            </div>
+          </div>
+
+          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', textAlign: 'center', lineHeight: 1.4, maxWidth: 150, marginTop: 2 }}>
+            Single-model (MRI-ESM2-0) estimate. Precipitation shows wider inter-model disagreement than temperature across CMIP6 generally.
           </div>
         </div>
       )}
@@ -134,6 +185,13 @@ export default function Legend() {
           </div>
         </div>
       )}
+
+      {/* Persistent model-attribution caption — always visible, regardless of active layer */}
+      <div style={{ ...GLASS, padding: '8px 12px' }}>
+        <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', lineHeight: 1.4 }}>
+          Data: MRI-ESM2-0 (one of ~30 CMIP6 models).
+        </div>
+      </div>
     </div>
   )
 }
