@@ -82,7 +82,7 @@ export default function Legend() {
           <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
             <div style={{ position: 'relative', width: 10, height: 90, borderRadius: 5, background: CMIP6_GRADIENT, flexShrink: 0 }}>
               <span style={{
-                position: 'absolute', left: '100%', marginLeft: 4, top: '91%',
+                position: 'absolute', right: '100%', marginRight: 4, top: '91%',
                 transform: 'translateY(-50%)', fontSize: 8, color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap',
               }}>0°C</span>
             </div>
@@ -119,10 +119,14 @@ export default function Legend() {
           </div>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
-            <div style={{ width: 10, height: 90, borderRadius: 5, background: PRECIP_GRADIENT, flexShrink: 0 }} />
+            <div style={{ position: 'relative', width: 10, height: 90, borderRadius: 5, background: PRECIP_GRADIENT, flexShrink: 0 }}>
+              <span style={{
+                position: 'absolute', right: '100%', marginRight: 4, top: '66.7%',
+                transform: 'translateY(-50%)', fontSize: 8, color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap',
+              }}>0%</span>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: 90 }}>
               <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', whiteSpace: 'nowrap' }}>+100%+</span>
-              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap' }}>0%</span>
               <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', whiteSpace: 'nowrap' }}>-50%</span>
             </div>
           </div>

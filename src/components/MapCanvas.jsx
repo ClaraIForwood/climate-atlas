@@ -115,26 +115,76 @@ function buildGridPopupHTML(lat, lon, valueLabel, valueColor, captionText) {
   )
 }
 
+// Pure functions of a feature's properties — used identically by the click handler
+// (initial popup) and by useGridLayerSync's year-change refresh (in-place update),
+// so the two can never drift apart from each other.
+const buildCmip6PopupHTML = (props) =>
+  buildGridPopupHTML(props.lat, props.lon, formatTemp(props.temp_anomaly), '#F0C040', 'Temp anomaly vs 1990 baseline')
+
+const buildPrecipPopupHTML = (props) =>
+  buildGridPopupHTML(props.lat, props.lon, formatPrecipPct(props.precip_change_pct), '#80cdc1', 'Precip change vs 1990 baseline')
+
 // Shared visibility/data-load + debounced year-change wiring for a raw grid layer.
 // Pure parameterization of the two effect-pairs that used to exist only for the
 // temperature grid — no behavioural differences between the temp/precip call sites.
-function useGridLayerSync(mapRef, mapLoadedRef, { sourceId, layerId, enabled, activeYear, urlFor, debounceRef }) {
+function useGridLayerSync(mapRef, mapLoadedRef, {
+  sourceId, layerId, enabled, activeYear, urlFor, debounceRef,
+  popupRef, idleHandlerRef, buildPopupHTML,
+}) {
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapLoadedRef.current) return
     map.setLayoutProperty(layerId, 'visibility', enabled ? 'visible' : 'none')
     if (enabled) {
       map.getSource(sourceId)?.setData(urlFor(snapToGridYear(activeYear)))
+    } else {
+      // Layer just turned off — either toggled off directly, or turned off by
+      // LayerToggles' mutual-exclusivity logic when the other grid turned on.
+      // A popup for a now-hidden layer is meaningless either way.
+      popupRef.current?.remove()
     }
   }, [enabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapLoadedRef.current || !enabled) return
+
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       map.getSource(sourceId)?.setData(urlFor(snapToGridYear(activeYear)))
+
+      const popup = popupRef.current
+      if (!popup) return // nothing open for this layer — nothing to refresh
+
+      // Wait for the new data to actually be rendered before querying it —
+      // 'idle' fires only after a render with all tiles loaded, unlike the
+      // source's own 'data' event (which fires once parsed but before paint,
+      // so queryRenderedFeatures could still miss it).
+      const onIdle = () => {
+        idleHandlerRef.current = null
+        if (popupRef.current !== popup) return // closed while we were waiting
+
+        const point = map.project(popup.getLngLat())
+        const [feature] = map.queryRenderedFeatures(point, { layers: [layerId] })
+
+        if (!feature) {
+          popup.remove() // edge of land mask, or panned/zoomed since the click
+          return
+        }
+        popup.setHTML(buildPopupHTML(feature.properties))
+      }
+
+      idleHandlerRef.current = onIdle
+      map.once('idle', onIdle)
     }, 50)
+
+    return () => {
+      clearTimeout(debounceRef.current)
+      if (idleHandlerRef.current) {
+        map.off('idle', idleHandlerRef.current)
+        idleHandlerRef.current = null
+      }
+    }
   }, [activeYear, enabled])
 }
 
@@ -145,6 +195,10 @@ export default function MapCanvas() {
   const countriesRef = useRef(null)
   const cmip6DebounceRef = useRef(null)
   const precipDebounceRef = useRef(null)
+  const cmip6PopupRef = useRef(null)
+  const precipPopupRef = useRef(null)
+  const cmip6PopupIdleRef = useRef(null)
+  const precipPopupIdleRef = useRef(null)
 
   const activeYear   = useClimateStore((s) => s.activeYear)
   const activeLayers = useClimateStore((s) => s.activeLayers)
@@ -252,25 +306,23 @@ export default function MapCanvas() {
         map.getCanvas().style.cursor = ''
       })
 
-      let gridPopup = null
       map.on('click', 'cmip6-grid-fill', (e) => {
         const props = e.features?.[0]?.properties
         if (!props) return
-        const html = buildGridPopupHTML(
-          props.lat, props.lon,
-          formatTemp(props.temp_anomaly), '#F0C040',
-          'Temp anomaly vs 1990 baseline',
-        )
-        if (gridPopup) gridPopup.remove()
-        gridPopup = new maplibregl.Popup({
+        cmip6PopupRef.current?.remove()
+        const popup = new maplibregl.Popup({
           closeButton: true,
           closeOnClick: true,
           offset: 8,
           className: 'city-hover-popup',
         })
           .setLngLat(e.lngLat)
-          .setHTML(html)
+          .setHTML(buildCmip6PopupHTML(props))
           .addTo(map)
+        popup.on('close', () => {
+          if (cmip6PopupRef.current === popup) cmip6PopupRef.current = null
+        })
+        cmip6PopupRef.current = popup
       })
 
       // Hover cursor + click popup on the precipitation grid
@@ -281,25 +333,23 @@ export default function MapCanvas() {
         map.getCanvas().style.cursor = ''
       })
 
-      let precipPopup = null
       map.on('click', 'precip-grid-fill', (e) => {
         const props = e.features?.[0]?.properties
         if (!props) return
-        const html = buildGridPopupHTML(
-          props.lat, props.lon,
-          formatPrecipPct(props.precip_change_pct), '#80cdc1',
-          'Precip change vs 1990 baseline',
-        )
-        if (precipPopup) precipPopup.remove()
-        precipPopup = new maplibregl.Popup({
+        precipPopupRef.current?.remove()
+        const popup = new maplibregl.Popup({
           closeButton: true,
           closeOnClick: true,
           offset: 8,
           className: 'city-hover-popup',
         })
           .setLngLat(e.lngLat)
-          .setHTML(html)
+          .setHTML(buildPrecipPopupHTML(props))
           .addTo(map)
+        popup.on('close', () => {
+          if (precipPopupRef.current === popup) precipPopupRef.current = null
+        })
+        precipPopupRef.current = popup
       })
 
       // Persist map position to URL
@@ -315,6 +365,31 @@ export default function MapCanvas() {
       // Populate immediately if data arrived before map finished loading
       if (countriesRef.current) {
         map.getSource('countries').setData(enrichCountries(countriesRef.current))
+      }
+
+      // Populate immediately if a layer is already enabled by the time the map
+      // finishes loading — otherwise it silently never renders, since the
+      // useGridLayerSync/country-fill effects below only re-apply state in
+      // response to `enabled` *changing*, not to mapLoadedRef becoming true
+      // (a ref mutation doesn't trigger a re-render). Reads live store state
+      // via getState() rather than the closure's activeLayers/activeYear,
+      // since useUrlState's mount-time URL hydration (in the parent App
+      // component) runs AFTER this child effect's closure was captured, but
+      // BEFORE this async 'load' event actually fires.
+      const { activeLayers: initialLayers, activeYear: initialYear } = useClimateStore.getState()
+      if (initialLayers.cmip6Grid) {
+        map.setLayoutProperty('cmip6-grid-fill', 'visibility', 'visible')
+        map.getSource('cmip6-grid').setData(gridUrl('cmip6', snapToGridYear(initialYear)))
+      }
+      if (initialLayers.precipGrid) {
+        map.setLayoutProperty('precip-grid-fill', 'visibility', 'visible')
+        map.getSource('precip-grid').setData(gridUrl('precip', snapToGridYear(initialYear)))
+      }
+      if (initialLayers.readiness || initialLayers.vulnerability) {
+        const prop = countryScoreProp(initialLayers.readiness, initialLayers.vulnerability)
+        map.setLayoutProperty('countries-fill', 'visibility', 'visible')
+        map.setLayoutProperty('countries-outline', 'visibility', 'visible')
+        map.setPaintProperty('countries-fill', 'fill-color', makeCountryColorExpr(prop))
       }
     })
 
@@ -357,6 +432,9 @@ export default function MapCanvas() {
     activeYear,
     urlFor: (yr) => gridUrl('cmip6', yr),
     debounceRef: cmip6DebounceRef,
+    popupRef: cmip6PopupRef,
+    idleHandlerRef: cmip6PopupIdleRef,
+    buildPopupHTML: buildCmip6PopupHTML,
   })
 
   useGridLayerSync(mapRef, mapLoadedRef, {
@@ -366,6 +444,9 @@ export default function MapCanvas() {
     activeYear,
     urlFor: (yr) => gridUrl('precip', yr),
     debounceRef: precipDebounceRef,
+    popupRef: precipPopupRef,
+    idleHandlerRef: precipPopupIdleRef,
+    buildPopupHTML: buildPrecipPopupHTML,
   })
 
   return <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />

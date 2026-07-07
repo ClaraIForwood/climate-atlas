@@ -3,8 +3,8 @@ import { create } from 'zustand'
 const useClimateStore = create((set) => ({
   activeYear: 2024,
   activeLayers: {
-    readiness: false,
-    vulnerability: false,
+    readiness: true,
+    vulnerability: true,
     cmip6Grid: false,
     precipGrid: false,
   },
