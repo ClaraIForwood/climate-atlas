@@ -17,7 +17,7 @@ function Section({ title, children }) {
       }}>
         {title}
       </div>
-      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', lineHeight: 1.6 }}>
+      <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 1.6 }}>
         {children}
       </div>
     </div>
@@ -37,7 +37,7 @@ export default function InfoPanel() {
         position: 'fixed',
         top: 20,
         right: 296,
-        width: 320,
+        width: 360,
         maxWidth: 'calc(100vw - 40px)',
         maxHeight: 'calc(100vh - 40px)',
         overflowY: 'auto',
@@ -46,7 +46,7 @@ export default function InfoPanel() {
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: '#fff', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
           About this data
         </div>
         <button
