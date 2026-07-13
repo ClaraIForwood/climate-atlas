@@ -18,6 +18,12 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 
+from calculations import (
+    normalise_scores,
+    invert_vulnerability,
+    compute_temp_anomaly,
+    compute_precip_pct_change,
+)
 from sources import (
     CMIP6_SCENARIO,
     BASELINE_YEAR,
@@ -94,18 +100,10 @@ def _load_ndgain_scores_by_iso3() -> dict[str, dict[str, float]]:
     for iso3, r in readiness_raw.items():
         g = gain_raw.get(iso3)
         if g is not None:
-            v = r + 1.0 - g / 50.0
-            vuln_raw[iso3] = max(0.0, min(1.0, v))  # clip to [0,1]
+            vuln_raw[iso3] = invert_vulnerability(r, g)
 
-    def _normalise(d: dict[str, float]) -> dict[str, float]:
-        if not d:
-            return {}
-        lo, hi = min(d.values()), max(d.values())
-        span = hi - lo or 1.0
-        return {k: round((v - lo) / span, 4) for k, v in d.items()}
-
-    r_norm = _normalise(readiness_raw)
-    v_norm = _normalise(vuln_raw)
+    r_norm = normalise_scores(readiness_raw)
+    v_norm = normalise_scores(vuln_raw)
 
     all_iso3 = set(r_norm) | set(v_norm)
     return {
@@ -304,9 +302,11 @@ def export_cmip6_grid_geojson(countries_gdf: gpd.GeoDataFrame) -> dict:
             s = lat_c - GRID_HALF_DEG
             n = lat_c + GRID_HALF_DEG
 
-            raw_val = float(anomaly_2d[lat_i, lon_i])
-            val = max(TEMP_ANOMALY_CLIP_MIN, min(TEMP_ANOMALY_CLIP_MAX, raw_val))
-            if val != raw_val:
+            val, clip_applied = compute_temp_anomaly(
+                float(proj_2d[lat_i, lon_i]), float(baseline_2d[lat_i, lon_i]),
+                TEMP_ANOMALY_CLIP_MIN, TEMP_ANOMALY_CLIP_MAX,
+            )
+            if clip_applied:
                 clip_applied_count += 1
 
             features.append({
@@ -448,14 +448,13 @@ def export_precipitation_grid_geojson(countries_gdf: gpd.GeoDataFrame) -> dict:
             base_val = float(baseline_2d[lat_i, lon_i])
             proj_val = float(proj_2d[lat_i, lon_i])
 
-            denom = base_val
-            if denom < PR_BASELINE_FLOOR_MM_DAY:
-                denom = PR_BASELINE_FLOOR_MM_DAY
+            pct, floor_applied, clip_applied = compute_precip_pct_change(
+                proj_val, base_val, PR_BASELINE_FLOOR_MM_DAY,
+                PR_PCT_CLIP_MIN, PR_PCT_CLIP_MAX,
+            )
+            if floor_applied:
                 floor_applied_count += 1
-
-            raw_pct = 100.0 * (proj_val - base_val) / denom
-            pct = max(PR_PCT_CLIP_MIN, min(PR_PCT_CLIP_MAX, raw_pct))
-            if pct != raw_pct:
+            if clip_applied:
                 pct_clip_applied_count += 1
 
             features.append({
