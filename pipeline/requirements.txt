@@ -6,3 +6,7 @@ shapely>=2.0
 pyogrio>=0.7
 requests>=2.31
 pytest>=8.0
+xarray>=2024.1
+netCDF4>=1.6
+cdsapi>=0.7
+pip-system-certs>=4.0
